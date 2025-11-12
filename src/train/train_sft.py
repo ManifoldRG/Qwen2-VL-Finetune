@@ -93,6 +93,21 @@ def train():
         (ModelArguments, DataArguments, TrainingArguments))
     
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    use_liger = training_args.use_liger
+    if "Qwen2.5" or "UI-TARS" in model_args.model_id:
+        # monkey patch the vision model
+        replace_qwen2_5_vision()
+        # It monkey patches the forward to handle mixed modality inputs.
+        replace_qwen2_5_with_mixed_modality_forward()
+        # This is becuase mixed-modality training monkey-patches the model forward method.
+        if use_liger:
+            apply_liger_kernel_to_qwen2_5_vl()
+    else:
+        # It monkey patches the forward to handle mixed modality inputs.
+        replace_qwen_2_with_mixed_modality_forward()
+        # This is becuase mixed-modality training monkey-patches the model forward method.
+        if use_liger:
+            apply_liger_kernel_to_qwen2_vl()
     
     if data_args.nframes is not None and data_args.fps is not None:
         raise ValueError("You cannot set both `nframes` and `fps` at the same time. Please set only one of them.")
@@ -164,7 +179,12 @@ def train():
             attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "sdpa", 
             **bnb_model_from_pretrained_args
         )
-        
+    elif "UI-TARS" in model_args.model_id:
+        model = AutoModelForVision2Seq.from_pretrained(
+            model_args.model_id,
+            dtype=compute_dtype,
+            attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "sdpa", 
+        )
     else:
         replace_qwen_2_with_mixed_modality_forward()
         model = Qwen2VLForConditionalGeneration.from_pretrained(

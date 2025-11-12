@@ -4,6 +4,7 @@
 # MODEL_NAME="Qwen/Qwen2-VL-2B-Instruct"
 # MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
 # MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"
+MODEL_NAME="ByteDance-Seed/UI-TARS-1.5-7B"
 
 MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct"
 
@@ -29,8 +30,8 @@ deepspeed src/train/train_sft.py \
     --num_lora_modules -1 \
     --deepspeed scripts/zero3_offload.json \
     --model_id $MODEL_NAME \
-    --data_path /path/to/your/training/data.json \
-    --image_folder /path/to/your/image/folder \
+    --data_path data/training_data.json \
+    --image_folder data/screenshots \
     --remove_unused_columns False \
     --freeze_vision_tower False \
     --freeze_llm True \
