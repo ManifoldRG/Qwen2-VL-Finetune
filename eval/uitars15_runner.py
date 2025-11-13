@@ -1,11 +1,17 @@
 """
-Run UITARSAgent evaluation on trajectory episodes.
+Run UITARSAgent evaluation on recorded trajectory episodes.
 
-Usage:
+Usage (single episode):
     python -m eval.uitars15_runner \\
-        --episode_dir outputs/run_X/episode_Y \\
+        --episode_dir /abs/path/to/outputs/run_X/<episode_id> \\
         --model your-model \\
-        --output_jsonl results.jsonl
+        --output_jsonl /abs/path/to/results.jsonl
+
+Usage (entire run directory of episodes):
+    python -m eval.uitars15_runner \\
+        --run_dir /abs/path/to/outputs/run_X \\
+        --model your-model \\
+        --output_jsonl /abs/path/to/results.jsonl
 
 Set environment variables before running:
     export DOUBAO_API_URL="https://your-endpoint.com/v1"
@@ -18,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from eval.episode_loader import load_episode
-from eval.uitars15_v1 import UITARSAgent
+from eval.uitars15_v1 import UITARSAgent, compute_step_metrics
 
 
 def build_runtime_conf(args: argparse.Namespace) -> Dict[str, Any]:
@@ -42,8 +48,10 @@ def build_runtime_conf(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run UITARSAgent over a recorded episode.")
-    parser.add_argument("--episode_dir", type=str, required=True, help="Path to outputs/<run>/<episode> directory.")
+    parser = argparse.ArgumentParser(description="Run UITARSAgent over recorded episode(s).")
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("--episode_dir", type=str, help="Path to outputs/<run>/<episode> directory.")
+    input_group.add_argument("--run_dir", type=str, help="Path to a run directory containing episode subdirectories.")
     parser.add_argument("--model", type=str, required=True, help="Model name/id for the OpenAI-compatible endpoint.")
     parser.add_argument("--instruction_source", type=str, choices=["step", "global"], default="step")
     parser.add_argument(
@@ -80,19 +88,33 @@ def parse_args() -> argparse.Namespace:
         "--output_jsonl",
         type=str,
         default=None,
-        help="Optional path to write per-step predictions as JSONL.",
+        help="Optional path to write per-step predictions as JSONL (aggregated if --run_dir is provided).",
+    )
+    parser.add_argument(
+        "--metrics_jsonl",
+        type=str,
+        default=None,
+        help="Optional path to write per-step metrics as JSONL.",
     )
 
     return parser.parse_args()
 
 
+def _iter_episode_dirs(run_dir: Path):
+    """Yield episode subdirectories under run_dir that contain trajectory.json and screenshots/."""
+    if not run_dir.is_dir():
+        raise NotADirectoryError(f"Invalid run_dir: {run_dir}")
+    for child in sorted(run_dir.iterdir()):
+        if not child.is_dir():
+            continue
+        traj = child / "trajectory.json"
+        shots = child / "screenshots"
+        if traj.is_file() and shots.is_dir():
+            yield child
+
+
 def main() -> None:
     args = parse_args()
-
-    
-    episode_dir = Path(args.episode_dir)
-    if not episode_dir.is_dir():
-        raise NotADirectoryError(f"Invalid episode_dir: {episode_dir}")
 
     runtime_conf = build_runtime_conf(args)
     agent = UITARSAgent(
@@ -107,64 +129,122 @@ def main() -> None:
         out_path = Path(args.output_jsonl)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         jsonl_file = out_path.open("w")
+    
+    metrics_file: Optional[Any] = None
+    if args.metrics_jsonl is not None:
+        metrics_path = Path(args.metrics_jsonl)
+        metrics_path.parent.mkdir(parents=True, exist_ok=True)
+        metrics_file = metrics_path.open("w")
 
-    agent.reset()
+    def evaluate_one_episode(ep_dir: Path) -> None:
+        nonlocal jsonl_file
+        nonlocal metrics_file
+        agent.reset()
 
-    step_index = 0
-    for instruction, obs, metadata in load_episode(
-        str(episode_dir), instruction_source=args.instruction_source
-    ):
-        if args.reset_each_step:
-            agent.reset()
+        # Aggregators
+        steps = 0
+        sum_elem_acc = 0.0
+        sum_op_f1 = 0.0
 
-        try:
-            prediction, actions = agent.predict(instruction, obs)
-        except Exception as e:
-            print(f"[runner] ERROR at step={step_index}: {e}")
+        step_index = 0
+        for instruction, obs, metadata in load_episode(
+            str(ep_dir), instruction_source=args.instruction_source
+        ):
+            if args.reset_each_step:
+                agent.reset()
+
+            try:
+                prediction, actions = agent.predict(instruction, obs)
+            except Exception as e:
+                print(f"[runner] ERROR episode={ep_dir.name} step={step_index}: {e}")
+                if jsonl_file is not None:
+                    record = {
+                        "episode": ep_dir.name,
+                        "step_index": step_index,
+                        "instruction": instruction,
+                        "error": str(e),
+                        "metadata": metadata,
+                    }
+                    jsonl_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    jsonl_file.flush()
+                raise
+            
+            # Compute metrics per step
+            try:
+                metrics = compute_step_metrics(
+                    prediction_text=prediction,
+                    screenshot_bytes=obs["screenshot"],
+                    metadata=metadata,
+                    model_type="qwen25vl",
+                    max_pixels=args.max_pixels,
+                    min_pixels=args.min_pixels
+                )
+            except Exception as _:
+                metrics = {"element_accuracy": 0.0, "operation_f1": 0.0}
+
+            is_terminal = False
+            if prediction == "client error" or actions in [["DONE"], ["FAIL"]]:
+                is_terminal = True
+                if prediction == "client error":
+                    print(f"[runner] WARNING: Client error at step={step_index}")
+                elif actions == ["DONE"]:
+                    print(f"[runner] Task completed at step={step_index}")
+                elif actions == ["FAIL"]:
+                    print(f"[runner] Task failed at step={step_index}")
+            print(f"[runner] episode={ep_dir.name} step={step_index}")
+            print(f"[runner] instruction={instruction}")
+            print(f"[runner] prediction={prediction}")
+            print(f"[runner] actions={actions}")
+            print(f"[runner] metrics element_acc={metrics['element_accuracy']:.3f} op_f1={metrics['operation_f1']:.3f}")
             if jsonl_file is not None:
                 record = {
+                    "episode": ep_dir.name,
                     "step_index": step_index,
                     "instruction": instruction,
-                    "error": str(e),
+                    "prediction": prediction,
+                    "actions": actions,
                     "metadata": metadata,
                 }
                 jsonl_file.write(json.dumps(record, ensure_ascii=False) + "\n")
                 jsonl_file.flush()
-            raise
+            if metrics_file is not None:
+                mrec = {
+                    "episode": ep_dir.name,
+                    "step_index": step_index,
+                    "element_accuracy": metrics["element_accuracy"],
+                    "operation_f1": metrics["operation_f1"],
+                    "op": metadata.get("op"),
+                }
+                metrics_file.write(json.dumps(mrec, ensure_ascii=False) + "\n")
+                metrics_file.flush()
 
-        is_terminal = False
-        if prediction == "client error" or actions in [["DONE"], ["FAIL"]]:
-            is_terminal = True
-            if prediction == "client error":
-                print(f"[runner] WARNING: Client error at step={step_index}")
-            elif actions == ["DONE"]:
-                print(f"[runner] Task completed at step={step_index}")
-            elif actions == ["FAIL"]:
-                print(f"[runner] Task failed at step={step_index}")
-        print(f"[runner] step={step_index}")
-        print(f"[runner] instruction={instruction}")
-        print(f"[runner] prediction={prediction}")
-        print(f"[runner] actions={actions}")
-        if jsonl_file is not None:
-            record = {
-                "step_index": step_index,
-                "instruction": instruction,
-                "prediction": prediction,
-                "actions": actions,
-                "metadata": metadata,
-            }
-            jsonl_file.write(json.dumps(record, ensure_ascii=False) + "\n")
-            jsonl_file.flush()
+            steps += 1
+            sum_elem_acc += float(metrics["element_accuracy"])
+            sum_op_f1 += float(metrics["operation_f1"])
+            step_index += 1
+            if is_terminal:
+                print(f"[runner] Stopping evaluation due to terminal state.")
+                break
 
-        step_index += 1
-        if is_terminal:
-            print(f"[runner] Stopping evaluation due to terminal state.")
-            break
+        avg_elem = (sum_elem_acc / steps) if steps > 0 else 0.0
+        avg_f1 = (sum_op_f1 / steps) if steps > 0 else 0.0
+        print(f"[runner] Completed {step_index} steps for episode={ep_dir.name}. "
+              f"avg_element_acc={avg_elem:.3f} avg_operation_f1={avg_f1:.3f}")
 
-    print(f"[runner] Completed {step_index} steps.")
+    if args.episode_dir:
+        episode_dir = Path(args.episode_dir)
+        if not episode_dir.is_dir():
+            raise NotADirectoryError(f"Invalid episode_dir: {episode_dir}")
+        evaluate_one_episode(episode_dir)
+    else:
+        run_dir = Path(args.run_dir)
+        for ep in _iter_episode_dirs(run_dir):
+            evaluate_one_episode(ep)
     
     if jsonl_file is not None:
         jsonl_file.close()
+    if metrics_file is not None:
+        metrics_file.close()
 
 
 if __name__ == "__main__":
