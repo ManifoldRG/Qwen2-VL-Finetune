@@ -44,7 +44,7 @@ for i, example in enumerate(trajectory_data):
 
   #Mind2Web has actions: Click, Type, Hover, Press Enter, Click (Fake) and Ignore. Map these actions to the UI Tars actions
   prediction = ""
-  if op.lower() == "click" or op.lower == "hover":
+  if op.lower() == "click" or op.lower() == "hover" or op.lower() == "click (fake)":
     prediction = f"<image>\nAction: click(start_box='(${coordinates[0]}, ${coordinates[1]})')"
   elif op.lower() == "type":
     prediction = f"<image>\nAction: type(content='({type_action_value})')"
