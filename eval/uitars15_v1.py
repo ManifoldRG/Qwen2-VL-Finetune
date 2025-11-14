@@ -9,14 +9,13 @@ import math
 import re
 import xml.etree.ElementTree as ET
 from io import BytesIO
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
 import numpy as np
 import base64
 from loguru import logger
 import os
 import re
 from io import BytesIO
-from typing import Dict, List
 from PIL import Image
 from mm_agents.accessibility_tree_wrap.heuristic_retrieve import (
     filter_nodes,
@@ -606,6 +605,210 @@ def trim_accessibility_tree(linearized_accessibility_tree, max_tokens):
     #     linearized_accessibility_tree = enc.decode(tokens[:max_tokens])
     #     linearized_accessibility_tree += "[...]\n"
     return linearized_accessibility_tree
+
+
+# ============================================================================
+# Step-level Metrics: Element Accuracy and Operation F1
+# ============================================================================
+
+def _parse_start_point_from_action_inputs(action_inputs: Dict) -> Optional[Tuple[float, float]]:
+    """
+    Extract normalized (x, y) from parsed action_inputs['start_box'] if present.
+    parse_action_to_structure_output stores start_box as string of a float list.
+    Returns (x_norm, y_norm) in [0,1] if available.
+    """
+    if not action_inputs:
+        return None
+    start_val = None
+    for k, v in action_inputs.items():
+        if "start_box" in k:
+            start_val = v
+            break
+    if start_val is None:
+        return None
+    try:
+        # Expect formats like "[x, y, ...]" as a string
+        import ast
+        vals = ast.literal_eval(start_val)  # safer than eval
+        if isinstance(vals, list) and len(vals) >= 2:
+            x_norm, y_norm = float(vals[0]), float(vals[1])
+            return x_norm, y_norm
+    except Exception:
+        return None
+    return None
+
+
+def _point_within_bbox(x: float, y: float, bbox: List[float]) -> bool:
+    try:
+        bx, by, bw, bh = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
+        return (bx <= x <= bx + bw) and (by <= y <= by + bh)
+    except Exception:
+        return False
+
+
+def _tokenize_simple(s: str) -> List[str]:
+    """Whitespace tokenization for F1 computation."""
+    return [t.lower() for t in re.split(r"\s+", s.strip()) if t]
+
+
+def _f1_from_tokens(pred_tokens: List[str], gt_tokens: List[str]) -> float:
+    """
+    Compute token-level F1 using multiset (bag-of-words) semantics.
+    This counts how many tokens match, treating duplicates separately.
+    """
+    if len(pred_tokens) == 0 and len(gt_tokens) == 0:
+        return 1.0
+    if len(pred_tokens) == 0 or len(gt_tokens) == 0:
+        return 0.0
+    
+    from collections import Counter
+    pred_counts = Counter(pred_tokens)
+    gt_counts = Counter(gt_tokens)
+    
+    # True positives: min count of each token in both
+    tp = sum((pred_counts & gt_counts).values())
+    
+    if tp == 0:
+        return 0.0
+    
+    precision = tp / max(1, len(pred_tokens))
+    recall = tp / max(1, len(gt_tokens))
+    
+    if precision + recall == 0:
+        return 0.0
+    return 2 * precision * recall / (precision + recall)
+
+
+def compute_step_metrics(
+    prediction_text: str,
+    screenshot_bytes: bytes,
+    metadata: Dict,
+    model_type: str = "qwen25vl",
+    max_pixels: int = MAX_PIXELS,
+    min_pixels: int = MIN_PIXELS,
+    coords_tolerance_px: int = 20
+) -> Dict[str, float]:
+    """
+    Compute Element Accuracy and Operation F1 for a single step.
+    
+    Element Accuracy:
+      - For CLICK-like actions: 1 if predicted point lies inside GT bounding_box, or
+        within coords_tolerance_px of GT coordinates; else 0.
+    
+    Operation F1:
+      - For CLICK/HOVER: equals Element Accuracy (binary).
+      - For TYPE/SELECT: token-level F1 on input content vs GT value (type_action_value).
+      - For PRESS ENTER-like: 1 if predicted produces newline, else 0.
+    
+    Returns:
+      {"element_accuracy": 0/1, "operation_f1": float in [0,1]}
+    """
+    # Resolve target resized dimensions consistent with parse_action_to_structure_output
+    try:
+        img = Image.open(BytesIO(screenshot_bytes))
+        origin_h, origin_w = img.height, img.width
+        smart_h, smart_w = smart_resize(origin_h, origin_w, factor=IMAGE_FACTOR, min_pixels=min_pixels, max_pixels=max_pixels)
+    except Exception:
+        # If image fails, fallback to 1x1 to avoid crash; metrics will likely be 0
+        origin_h, origin_w = 1, 1
+        smart_h, smart_w = 1, 1
+    
+    # Parse model response into structured actions
+    try:
+        parsed = parse_action_to_structure_output(
+            prediction_text,
+            factor=1000,
+            origin_resized_height=smart_h,
+            origin_resized_width=smart_w,
+            model_type=model_type,
+            max_pixels=max_pixels,
+            min_pixels=min_pixels
+        )
+    except Exception:
+        parsed = []
+    
+    element_accuracy = 0.0
+    operation_f1 = 0.0
+    
+    if len(parsed) == 0:
+        return {"element_accuracy": element_accuracy, "operation_f1": operation_f1}
+    
+    # Use first action for step-level evaluation
+    pa = parsed[0]
+    action_type = (pa.get("action_type") or "").lower()
+    action_inputs = pa.get("action_inputs") or {}
+    
+    gt_op = (metadata.get("op") or "").upper()
+    gt_bbox = metadata.get("bounding_box") or []
+    gt_coords = metadata.get("coordinates") or []
+    gt_value = metadata.get("type_action_value") or ""
+    
+    # Compute predicted point (in smart-resized pixels) if available
+    pred_point_norm = _parse_start_point_from_action_inputs(action_inputs)
+    pred_point_px = None
+    if pred_point_norm is not None:
+        px = float(pred_point_norm[0]) * float(smart_w)
+        py = float(pred_point_norm[1]) * float(smart_h)
+        pred_point_px = (px, py)
+    
+    # Scale GT bbox/coords from original image space to smart-resized space
+    scale_x = smart_w / max(1.0, float(origin_w))
+    scale_y = smart_h / max(1.0, float(origin_h))
+    
+    gt_bbox_scaled = []
+    if isinstance(gt_bbox, list) and len(gt_bbox) >= 4:
+        gt_bbox_scaled = [
+            float(gt_bbox[0]) * scale_x,
+            float(gt_bbox[1]) * scale_y,
+            float(gt_bbox[2]) * scale_x,
+            float(gt_bbox[3]) * scale_y
+        ]
+    
+    gt_coords_scaled = []
+    if isinstance(gt_coords, list) and len(gt_coords) >= 2:
+        gt_coords_scaled = [
+            float(gt_coords[0]) * scale_x,
+            float(gt_coords[1]) * scale_y
+        ]
+    
+    # Element Accuracy
+    if pred_point_px is not None and (action_type in ["click", "left_double", "right_single", "drag", "scroll", "type"]):
+        hit = False
+        if len(gt_bbox_scaled) >= 4:
+            hit = _point_within_bbox(pred_point_px[0], pred_point_px[1], gt_bbox_scaled)
+        if not hit and len(gt_coords_scaled) >= 2:
+            try:
+                gx, gy = gt_coords_scaled[0], gt_coords_scaled[1]
+                dx = pred_point_px[0] - gx
+                dy = pred_point_px[1] - gy
+                hit = (dx * dx + dy * dy) ** 0.5 <= coords_tolerance_px
+            except Exception:
+                hit = False
+        element_accuracy = 1.0 if hit else 0.0
+    else:
+        element_accuracy = 0.0
+    
+    # Operation F1
+    if gt_op in ["CLICK", "HOVER"]:
+        operation_f1 = element_accuracy
+    elif gt_op in ["TYPE", "SELECT"]:
+        pred_content = action_inputs.get("content") or ""
+        # Token-level F1 on content value; exact match yields 1.0
+        if isinstance(pred_content, str):
+            pred_tokens = _tokenize_simple(pred_content)
+            gt_tokens = _tokenize_simple(str(gt_value))
+            operation_f1 = _f1_from_tokens(pred_tokens, gt_tokens)
+        else:
+            operation_f1 = 0.0
+    elif gt_op in ["PRESS ENTER", "PRESS_ENTER", "ENTER", "RETURN"]:
+        # Accept either explicit newline typing or a hotkey representation captured upstream
+        pred_content = action_inputs.get("content") or ""
+        operation_f1 = 1.0 if str(pred_content) == "\\n" or str(pred_content) == "\n" else 0.0
+    else:
+        # Unknown op: fallback to 0
+        operation_f1 = 0.0
+    
+    return {"element_accuracy": float(element_accuracy), "operation_f1": float(operation_f1)}
 
 
 class UITARSAgent:
