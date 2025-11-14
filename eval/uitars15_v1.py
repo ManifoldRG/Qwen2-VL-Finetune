@@ -257,6 +257,7 @@ def parse_action_to_structure_output(text, factor, origin_resized_height, origin
         })
     return actions
 
+<<<<<<< HEAD
 
 # ============================================================================
 # Evaluation Helpers and Agent Wrapper
@@ -767,6 +768,192 @@ def format_coordinates(action_inputs: Dict) -> str:
     
     return ", ".join(coords) if coords else "No coordinates"
 
+=======
+# ============================================================================
+# Main Prediction Function
+# ============================================================================
+
+def predict_action(image_path: str, instruction: str, 
+                  model: str = "ByteDance-Seed/UI-TARS-1.5-7B",
+                  api_url: str = None,
+                  api_key: str = None,
+                  temperature: float = 0.7,
+                  max_tokens: int = 2048,
+                  model_type: str = "qwen25vl",
+                  language: str = "English",
+                  max_pixels: int = MAX_PIXELS,
+                  min_pixels: int = MIN_PIXELS,
+                  output_json: bool = False) -> Dict:
+    """
+    Predict action from image and instruction.
+    
+    Args:
+        image_path: Path to image file
+        instruction: Text instruction
+        model: Model name (defaults to ByteDance-Seed/UI-TARS-1.5-7B)
+        api_url: API base URL (defaults to vLLM at http://localhost:8000/v1)
+        api_key: API key (defaults to "EMPTY" for vLLM)
+        temperature: Sampling temperature
+        max_tokens: Maximum tokens
+        model_type: "qwen25vl" or "qwen2vl"
+        language: Language for thought output
+        max_pixels: Maximum image pixels
+        min_pixels: Minimum image pixels
+        output_json: Output as JSON
+    
+    Returns:
+        Dictionary with prediction results
+    """
+    # Load and process image
+    try:
+        image = Image.open(image_path)
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+    except Exception as e:
+        raise ValueError(f"Failed to load image: {e}")
+    
+    # Resize image if needed
+    if image.width * image.height > max_pixels:
+        resize_factor = math.sqrt(max_pixels / (image.width * image.height))
+        width = int(image.width * resize_factor)
+        height = int(image.height * resize_factor)
+        image = image.resize((width, height))
+    if image.width * image.height < min_pixels:
+        resize_factor = math.sqrt(min_pixels / (image.width * image.height))
+        width = math.ceil(image.width * resize_factor)
+        height = math.ceil(image.height * resize_factor)
+        image = image.resize((width, height))
+    
+    origin_resized_height = image.height
+    origin_resized_width = image.width
+    
+    # Encode image
+    encoded_string = pil_to_base64(image)
+    
+    # Format prompt
+    prompt = UITARS_USR_PROMPT_THOUGHT.format(
+        action_space=UITARS_ACTION_SPACE,
+        language=language,
+        instruction=instruction
+    )
+    
+    # Create messages in vLLM format (OpenAI-compatible)
+    # Format matches official vLLM API:
+    # {
+    #   "role": "user",
+    #   "content": [
+    #     {"type": "text", "text": "..."},
+    #     {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+    #   ]
+    # }
+    messages = [
+        {
+            "role": "system",
+            "content": [{"type": "text", "text": "You are a helpful assistant."}]
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded_string}"}}
+            ]
+        }
+    ]
+    
+    # Setup API client for vLLM server
+    # vLLM serves models via OpenAI-compatible REST API at http://localhost:8000/v1/chat/completions
+    # Official command: vllm serve "ByteDance-Seed/UI-TARS-1.5-7B"
+    if api_url is None:
+        api_url = os.environ.get('VLLM_API_URL', 'http://localhost:8000/v1')
+    if api_key is None:
+        api_key = os.environ.get('VLLM_API_KEY', 'EMPTY')
+    
+    # Create OpenAI client pointing to vLLM server
+    # The client automatically appends /chat/completions to the base URL
+    client = OpenAI(base_url=api_url, api_key=api_key)
+    
+    # Call vLLM server via OpenAI-compatible API
+    # This matches the official curl format:
+    # curl -X POST "http://localhost:8000/v1/chat/completions" \
+    #   -H "Content-Type: application/json" \
+    #   --data '{"model": "ByteDance-Seed/UI-TARS-1.5-7B", "messages": [...]}'
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        prediction = response.choices[0].message.content.strip()
+    except Exception as e:
+        raise RuntimeError(
+            f"vLLM API call failed: {e}\n"
+            f"Make sure vLLM server is running: vllm serve 'ByteDance-Seed/UI-TARS-1.5-7B'\n"
+            f"API endpoint: {api_url}/chat/completions"
+        )
+    
+    # Parse prediction
+    try:
+        parsed_actions = parse_action_to_structure_output(
+            prediction,
+            factor=1000,
+            origin_resized_height=origin_resized_height,
+            origin_resized_width=origin_resized_width,
+            model_type=model_type,
+            max_pixels=max_pixels,
+            min_pixels=min_pixels
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to parse prediction: {e}\nRaw prediction: {prediction}")
+    
+    # Format output
+    result = {
+        "prediction": prediction,
+        "image_size": {"width": origin_resized_width, "height": origin_resized_height},
+        "actions": []
+    }
+    
+    for parsed_action in parsed_actions:
+        action_data = {
+            "action_type": parsed_action.get("action_type"),
+            "action_inputs": parsed_action.get("action_inputs", {}),
+            "thought": parsed_action.get("thought"),
+            "reflection": parsed_action.get("reflection")
+        }
+        result["actions"].append(action_data)
+    
+    return result
+
+# ============================================================================
+# CLI Interface
+# ============================================================================
+
+def format_coordinates(action_inputs: Dict) -> str:
+    """Format coordinates for display."""
+    coords = []
+    if "start_box" in action_inputs:
+        start_box = action_inputs["start_box"]
+        try:
+            coords_list = eval(start_box) if isinstance(start_box, str) else start_box
+            if len(coords_list) >= 2:
+                coords.append(f"Start: ({coords_list[0]:.4f}, {coords_list[1]:.4f})")
+            if len(coords_list) >= 4:
+                coords.append(f"End: ({coords_list[2]:.4f}, {coords_list[3]:.4f})")
+        except:
+            coords.append(f"Start Box: {start_box}")
+    
+    if "end_box" in action_inputs:
+        end_box = action_inputs["end_box"]
+        try:
+            coords_list = eval(end_box) if isinstance(end_box, str) else end_box
+            if len(coords_list) >= 2:
+                coords.append(f"End: ({coords_list[0]:.4f}, {coords_list[1]:.4f})")
+        except:
+            coords.append(f"End Box: {end_box}")
+    
+    return ", ".join(coords) if coords else "No coordinates"
+
+>>>>>>> c8d6a5e (Updates uitars15 inference example script for grounding task)
 def main():
     parser = argparse.ArgumentParser(
         description="Standalone GUI action prediction from image and text",
@@ -852,4 +1039,8 @@ Examples:
         print("\n" + "=" * 80)
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     main()
+=======
+    main()
+>>>>>>> c8d6a5e (Updates uitars15 inference example script for grounding task)
