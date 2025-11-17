@@ -9,6 +9,7 @@ MODEL_NAME="ByteDance-Seed/UI-TARS-1.5-7B"
 MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct"
 
 export PYTHONPATH=src:$PYTHONPATH
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 GLOBAL_BATCH_SIZE=128
 BATCH_PER_DEVICE=2
