@@ -486,7 +486,6 @@ class UITARSAgent:
 
             # For GTA1, the user message is only the instruction text
             user_content.append({"type": "text", "text": instruction})
-<<<<<<< HEAD
         elif prompt_style in ("qwen25_tools", "qwen2.5_tools", "qwen25vl_tools"):
             # Prepare a guided tools-style system prompt with screen dimensions
             img_w = img_h = None
@@ -508,8 +507,6 @@ class UITARSAgent:
 
             # User sends instruction only; image is attached below
             user_content.append({"type": "text", "text": instruction})
-=======
->>>>>>> b18a381 (eval: add GTA1 prompt style, agent-per-episode concurrency fix; add concurrency test; merge latest master with CSV/base_dir support)
         else:
             # Default UITARS prompt with action space and instruction
             prompt = UITARS_USR_PROMPT_THOUGHT.format(
@@ -596,11 +593,7 @@ class UITARSAgent:
         response = client.chat.completions.create(**request_kwargs)
         prediction_text = response.choices[0].message.content.strip()
 
-<<<<<<< HEAD
         # If GTA1 or Qwen2.5 tools prompt style is used, rewrite to UITARS-style action
-=======
-        # If GTA1 prompt style is used, convert coordinates to UITARS-style click action
->>>>>>> b18a381 (eval: add GTA1 prompt style, agent-per-episode concurrency fix; add concurrency test; merge latest master with CSV/base_dir support)
         prompt_style = str(self.runtime_conf.get("prompt_style", "qwen25vl_normal")).lower()
         if prompt_style == "gta1":
             try:
@@ -621,7 +614,6 @@ class UITARSAgent:
             except Exception:
                 # Leave prediction_text unchanged on parse failure
                 pass
-<<<<<<< HEAD
         elif prompt_style in ("qwen25_tools", "qwen2.5_tools", "qwen25vl_tools"):
             try:
                 # Try to extract a JSON object inside <tool_call> ... </tool_call>
@@ -667,8 +659,6 @@ class UITARSAgent:
                         pass
             except Exception:
                 pass
-=======
->>>>>>> b18a381 (eval: add GTA1 prompt style, agent-per-episode concurrency fix; add concurrency test; merge latest master with CSV/base_dir support)
 
         # Extract raw UITARS action strings from the (possibly rewritten) response.
         actions = _split_action_strings(prediction_text)
