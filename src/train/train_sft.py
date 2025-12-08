@@ -94,7 +94,7 @@ def train():
     
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     use_liger = training_args.use_liger
-    if "Qwen2.5" or "UI-TARS" in model_args.model_id:
+    if "Qwen2.5" in model_args.model_id or "UI-TARS" in model_args.model_id:
         # monkey patch the vision model
         replace_qwen2_5_vision()
         # It monkey patches the forward to handle mixed modality inputs.
@@ -178,12 +178,6 @@ def train():
             dtype=compute_dtype,
             attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "sdpa", 
             **bnb_model_from_pretrained_args
-        )
-    elif "UI-TARS" in model_args.model_id:
-        model = AutoModelForVision2Seq.from_pretrained(
-            model_args.model_id,
-            dtype=compute_dtype,
-            attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "sdpa", 
         )
     else:
         replace_qwen_2_with_mixed_modality_forward()
