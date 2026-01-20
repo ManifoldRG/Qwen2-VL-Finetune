@@ -81,12 +81,12 @@ _parse_failures = {'count': 0, 'details': []}
 
 def parse_action_to_structure_output(
     text, 
-    factor=IMAGE_FACTOR, 
-    origin_resized_height=1080, 
-    origin_resized_width=1920, 
+    factor=IMAGE_FACTOR,
+    origin_resized_height=1080,
+    origin_resized_width=1920,
     model_type="uitars15", 
-    max_pixels=16384*28*28, 
-    min_pixels=100*28*28
+    max_pixels=MAX_PIXELS, 
+    min_pixels=MIN_PIXELS
 ):
     """
     Parse UI-TARS1.5 action text to structured output.
@@ -342,6 +342,7 @@ class UITARS15VLLMModel:
         api_key: Optional[str] = None,
         use_reasoning: bool = False,
         temperature: float = 0.0,
+        seed: int = 42,
         max_tokens: int = 1000,
     ):
         """
@@ -366,6 +367,7 @@ class UITARS15VLLMModel:
             model_type="uitars15",
             use_reasoning=use_reasoning,
             temperature=temperature,
+            seed=seed,
             max_tokens=max_tokens,
         )
         
