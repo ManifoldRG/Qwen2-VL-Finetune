@@ -119,6 +119,8 @@ def calc_metric_for_result_list(results):
     num_total = len(results)
     correct_num = sum(1 for res in results if res["correctness"] == "correct")
     wrong_format_num = sum(1 for res in results if res["correctness"] == "wrong_format")
+    error_num = sum(1 for res in results if res["correctness"] == "error")
+    wrong_num = sum(1 for res in results if res["correctness"] == "wrong")
 
     # Calculate text and icon specific metrics using collect_results_to_eval
     text_results = collect_results_to_eval(results, ui_type="text")
@@ -132,6 +134,8 @@ def calc_metric_for_result_list(results):
         "num_correct_action": correct_num,
         "num_total": num_total,
         "wrong_format_num": wrong_format_num,
+        "error_num": error_num,
+        "wrong_num": wrong_num,
         "action_acc": correct_num / num_total if num_total > 0 else 0,
         "text_acc": text_correct / text_total if text_total > 0 else 0,
         "icon_acc": icon_correct / icon_total if icon_total > 0 else 0
@@ -139,15 +143,40 @@ def calc_metric_for_result_list(results):
     return metrics
 
 
-def eval_sample_positive_gt(sample, response):
-    bbox = sample["bbox"]
-    bbox = [bbox[0], bbox[1], bbox[2], bbox[3]]  # x1, y1, x2, y2
-    # bbox = [bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]]  # x1, y1, w, h
-    img_size = sample["img_size"]
+def eval_sample_positive_gt(sample, response, dataset_path=None):
+    bbox = sample.get("bbox")
+    if bbox is None:
+        raise ValueError("Missing bbox in positive sample")
+    
+    # Detect bbox format based on task_filename or dataset path
+    # Priority: task_filename > dataset_path
+    task_filename = sample.get("task_filename", "")
+    is_v2_format = False
+    
+    # Check task_filename first
+    if task_filename:
+        is_v2_format = "_v2" in task_filename or task_filename.endswith("v2")
+    
+    # Fallback to dataset path if task_filename doesn't indicate format
+    if not is_v2_format and dataset_path:
+        dataset_folder = os.path.basename(os.path.normpath(dataset_path))
+        is_v2_format = "_v2" in dataset_folder or dataset_folder.endswith("v2")
+    
+    # Convert bbox to [x1, y1, x2, y2] format
+    if is_v2_format:
+        # ScreenSpot-v2 format: [x1, y1, width, height] -> convert to [x1, y1, x2, y2]
+        bbox = [bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]]
+    else:
+        # ScreenSpot-pro format: already [x1, y1, x2, y2]
+        bbox = [bbox[0], bbox[1], bbox[2], bbox[3]]
+
+    img_size = sample.get("img_size")
+    if img_size is None:
+        raise ValueError("Missing img_size in sample")
+    # Normalize bbox to [0, 1] range
     bbox = [bbox[0] / img_size[0], bbox[1] / img_size[1], bbox[2] / img_size[0], bbox[3] / img_size[1]]
     
-    click_point = response["point"]  # may be none
-    print(click_point)
+    click_point = response.get("point")  # may be none
     if click_point is None:
         return "wrong_format"
     # Check if the predicted point falls in the ground truth box
@@ -392,45 +421,125 @@ def main(args):
     print(f"Total tasks: {len(tasks_to_run)}")
 
     results = []
-    for sample in tqdm(tasks_to_run):
-        filename = sample["img_filename"]
+    for idx, sample in enumerate(tqdm(tasks_to_run)):
+        # #region agent log
+        with open('/home/locke/Qwen2-VL-Finetune/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"eval_screenspot_pro.py:395","message":"Sample keys check","data":{"sample_keys":list(sample.keys()),"sample_idx":idx,"has_id":"id" in sample,"has_platform":"platform" in sample,"has_application":"application" in sample,"has_ui_type":"ui_type" in sample,"has_group":"group" in sample,"data_source":sample.get("data_source"),"data_type":sample.get("data_type")},"timestamp":int(__import__("time").time()*1000)})+"\n")
+        # #endregion
+        
+        filename = sample.get("img_filename")
+        if not filename:
+            raise ValueError(f"Missing img_filename in sample at index {idx}")
         img_path = os.path.join(args.screenspot_imgs, filename)
 
-        if task_instance["gt_type"] == "positive":
-            response = model.ground_only_positive(instruction=sample["prompt_to_evaluate"], image=img_path)
-        elif task_instance["gt_type"] == "negative":
-            response = model.ground_allow_negative(instruction=sample["prompt_to_evaluate"], image=img_path)
-        # print(response)
-        point = response["point"]
-        img_size = sample["img_size"]
+        # Load image to get dimensions (img_size not in JSON)
+        img = Image.open(img_path)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        img_size = img.size  # (width, height)
+
+        gt_type = sample.get("gt_type")
+        response = None
+        error_info = None
+        
+        # Try to get model response, catch all exceptions
+        try:
+            if gt_type == "positive":
+                response = model.ground_only_positive(instruction=sample.get("prompt_to_evaluate"), image=img_path)
+            elif gt_type == "negative":
+                response = model.ground_allow_negative(instruction=sample.get("prompt_to_evaluate"), image=img_path)
+            else:
+                raise ValueError(f"Invalid gt_type: {gt_type}")
+        except Exception as e:
+            # Catch any model/API errors
+            error_info = {
+                "code": "model_error",
+                "error": type(e).__name__
+            }
+            # Try to get raw_response if available from exception message
+            raw_response = None
+            if hasattr(e, 'args') and len(e.args) > 0:
+                error_msg = str(e.args[0])
+                if "Raw response" in error_msg:
+                    import re
+                    match = re.search(r"Raw response \(first \d+ chars\): (.+)", error_msg)
+                    if match:
+                        raw_response = match.group(1)
+            response = {"raw_response": raw_response} if raw_response else {}
+        
+        # Check for invalid action type in response (for positive samples)
+        if response and response.get("error"):
+            error_info = response["error"]
+        
+        # Generate missing fields from available data
+        sample_id = sample.get("id") or f"{sample.get('task_filename', 'unknown')}_{idx}_{sample.get('img_filename', 'unknown')}"
+        platform = sample.get("platform") or (sample.get("task_filename", "").replace("screenspot_", "").replace("_v2", "") if "screenspot" in sample.get("task_filename", "") else None) or sample.get("data_source")
+        application = sample.get("application")
+        ui_type = sample.get("ui_type") or sample.get("data_type")
+        
+        # Handle error cases
+        if error_info:
+            sample_result = {
+                "id": sample_id,
+                "img_path": img_path, 
+                "group": sample.get("group"),
+                "platform": platform,
+                "application": application,
+                "lang": sample.get("language"),
+                "instruction_style": sample.get("instruction_style"),
+                "prompt_to_evaluate": sample.get("prompt_to_evaluate"), 
+                "gt_type": gt_type,
+                "ui_type": ui_type, 
+                "task_filename": sample.get("task_filename"), 
+                "pred": None,
+                "raw_response": response.get("raw_response"),
+                "correctness": "error",
+                "error_code": error_info.get("code", "unknown"),
+                "error_action_type": error_info.get("action_type") if "action_type" in error_info else None
+            }
+            results.append(sample_result)
+            continue
+        
+        # Normal processing for successful responses
+        point = response.get("point") if gt_type == "positive" else None
         point_in_pixel = [point[0] * img_size[0], point[1] * img_size[1]] if point else None
         
         sample_result = {
-            "id": sample["id"],
+            "id": sample_id,
             "img_path": img_path, 
-            "group": sample["group"] if "group" in sample else None,
-            "platform": sample["platform"],
-            "application": sample["application"],
-            "lang": sample["language"],
-            "instruction_style": sample["instruction_style"],
-            "prompt_to_evaluate": sample["prompt_to_evaluate"], 
-            "gt_type": sample["gt_type"],
-            "ui_type": sample["ui_type"], 
-            "task_filename": sample["task_filename"], 
+            "group": sample.get("group"),
+            "platform": platform,
+            "application": application,
+            "lang": sample.get("language"),
+            "instruction_style": sample.get("instruction_style"),
+            "prompt_to_evaluate": sample.get("prompt_to_evaluate"), 
+            "gt_type": gt_type,
+            "ui_type": ui_type, 
+            "task_filename": sample.get("task_filename"), 
             "pred": point_in_pixel, 
-            "raw_response": response["raw_response"]
+            "raw_response": response.get("raw_response")
         }
         
-        if sample["gt_type"] == "positive":
-            correctness = eval_sample_positive_gt(sample, response)
+        # Evaluate correctness, catch evaluation errors
+        try:
+            if gt_type == "positive":
+                # Add img_size to sample for eval_sample_positive_gt
+                sample_with_size = {**sample, "img_size": img_size}
+                correctness = eval_sample_positive_gt(sample_with_size, response, dataset_path=args.screenspot_test)
+                sample_result.update({
+                    "bbox": sample.get("bbox"), 
+                })
+            elif gt_type == "negative":
+                correctness = eval_sample_negative_gt(sample, response)
+            else:
+                raise ValueError("Wrong instruction type")
+        except Exception as e:
+            # Evaluation error (missing bbox, etc.)
+            correctness = "error"
             sample_result.update({
-                "bbox": sample["bbox"], 
+                "error_code": "evaluation_error",
+                "error": type(e).__name__
             })
-        elif sample["gt_type"] == "negative":
-            correctness = eval_sample_negative_gt(sample, response)
-        else:
-            raise ValueError("Wrong instruction type")
-
         
         sample_result.update({
             "correctness": correctness,

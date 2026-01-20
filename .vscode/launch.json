@@ -382,6 +382,106 @@
           "--save_interval",
           "1"
         ]
+      },
+      {
+        "name": "ScreenSpot: UI-TARS1.5-7B (vLLM) - All Tasks",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/eval/screenspot/eval_screenspot_pro.py",
+        "console": "integratedTerminal",
+        "python": "${workspaceFolder}/.venv/bin/python",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/eval/screenspot"
+        },
+        "cwd": "${workspaceFolder}/eval/screenspot",
+        "justMyCode": true,
+        "args": [
+          "--model_type",
+          "uitars15_vllm",
+          "--model_name_or_path",
+          "ByteDance-Seed/UI-TARS-1.5-7B",
+          "--screenspot_imgs",
+          "/mnt/disks/eval-data/ScreenSpot-v2/screenspotv2_image",
+          "--screenspot_test",
+          "/mnt/disks/eval-data/ScreenSpot-v2",
+          "--task",
+          "all",
+          "--inst_style",
+          "all",
+          "--language",
+          "en",
+          "--gt_type",
+          "all",
+          "--log_path",
+          "${workspaceFolder}/eval/screenspot/results/uitars15_7b_screenspot_v2_all.json"
+        ]
+      },
+      {
+        "name": "ScreenSpot: UI-TARS1.5-7B (vLLM) - Positive Only",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/eval/screenspot/eval_screenspot_pro.py",
+        "console": "integratedTerminal",
+        "python": "${workspaceFolder}/.venv/bin/python",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/eval/screenspot"
+        },
+        "cwd": "${workspaceFolder}/eval/screenspot",
+        "justMyCode": true,
+        "args": [
+          "--model_type",
+          "uitars15_vllm",
+          "--model_name_or_path",
+          "ByteDance-Seed/UI-TARS-1.5-7B",
+          "--screenspot_imgs",
+          "/mnt/disks/eval-data/ScreenSpot-v2/screenspotv2_image",
+          "--screenspot_test",
+          "/mnt/disks/eval-data/ScreenSpot-v2",
+          "--task",
+          "all",
+          "--inst_style",
+          "instruction",
+          "--language",
+          "en",
+          "--gt_type",
+          "positive",
+          "--log_path",
+          "${workspaceFolder}/eval/screenspot/results/uitars15_7b_screenspot_v2_positive.json"
+        ]
+      },
+      {
+        "name": "ScreenSpot: UI-TARS1.5-7B (vLLM) - With Reasoning",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/eval/screenspot/eval_screenspot_pro.py",
+        "console": "integratedTerminal",
+        "python": "${workspaceFolder}/.venv/bin/python",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/eval/screenspot"
+        },
+        "cwd": "${workspaceFolder}/eval/screenspot",
+        "justMyCode": true,
+        "args": [
+          "--model_type",
+          "uitars15_vllm",
+          "--model_name_or_path",
+          "ByteDance-Seed/UI-TARS-1.5-7B",
+          "--screenspot_imgs",
+          "/mnt/disks/eval-data/ScreenSpot-v2/screenspotv2_image",
+          "--screenspot_test",
+          "/mnt/disks/eval-data/ScreenSpot-v2",
+          "--task",
+          "all",
+          "--inst_style",
+          "all",
+          "--language",
+          "en",
+          "--gt_type",
+          "all",
+          "--log_path",
+          "${workspaceFolder}/eval/screenspot/results/uitars15_7b_screenspot_v2_reasoning.json",
+          "--use_reasoning"
+        ]
       }
     ]
   }

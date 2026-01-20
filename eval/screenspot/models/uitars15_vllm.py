@@ -434,12 +434,15 @@ class UITARS15VLLMModel:
         
         # For ScreenSpot, we only accept click-like actions (click, left_double, right_single)
         if coordinates is None:
-            raise ValueError(
-                f"Action type '{action_type}' does not provide coordinates. "
-                f"Expected one of: ['click', 'left_double', 'right_single']. "
-                f"Structured actions: {structured_actions}. "
-                f"Raw response (first 500 chars): {raw_response[:500]}"
-            )
+            # Return error info instead of raising - let caller handle it
+            return {
+                "point": None,
+                "raw_response": raw_response,
+                "error": {
+                    "code": "invalid_action_type",
+                    "action_type": action_type
+                }
+            }
         
         # Coordinates are already in original image space after parse_action_to_structure_output
         # Normalize to [0, 1] using actual image dimensions (not hardcoded values)
