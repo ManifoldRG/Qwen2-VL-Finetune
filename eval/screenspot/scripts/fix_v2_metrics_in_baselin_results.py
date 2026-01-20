@@ -22,14 +22,6 @@ sys.path.insert(0, str(eval_dir))
 
 from eval_screenspot_pro import (
     eval_sample_positive_gt,
-    calc_metric_for_result_list,
-    collect_results_to_eval,
-    make_combinations,
-    evaluate_fine_grained,
-    evaluate_seeclick_paper_style,
-    evaluate_leaderboard_simple_style,
-    evaluate_leaderboard_detailed_style,
-    evaluate_overall,
     evaluate
 )
 
@@ -117,9 +109,21 @@ def fix_results(input_file, output_file, img_base_path, dataset_path):
     # Fix positive samples
     print("Re-evaluating positive samples with correct bbox format...")
     fixed_details = []
+    positive_count = 0
+    correctness_changes = {"correct_to_wrong": 0, "wrong_to_correct": 0, "unchanged": 0}
     for sample in tqdm(details):
         if sample.get("gt_type") == "positive":
+            original_correctness = sample.get("correctness")
             fixed_sample = fix_positive_sample(sample, img_base_path, dataset_path)
+            new_correctness = fixed_sample.get("correctness")
+            if original_correctness != new_correctness:
+                if original_correctness == "correct" and new_correctness == "wrong":
+                    correctness_changes["correct_to_wrong"] += 1
+                elif original_correctness == "wrong" and new_correctness == "correct":
+                    correctness_changes["wrong_to_correct"] += 1
+            else:
+                correctness_changes["unchanged"] += 1
+            positive_count += 1
             fixed_details.append(fixed_sample)
         else:
             # Negative samples don't need fixing (they use different evaluation)

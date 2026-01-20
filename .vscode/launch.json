@@ -482,6 +482,29 @@
           "${workspaceFolder}/eval/screenspot/results/uitars15_7b_screenspot_v2_reasoning.json",
           "--use_reasoning"
         ]
+      },
+      {
+        "name": "Fix ScreenSpot-v2 Results: uitars15_7b_screenspot_v2_all.json",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/eval/screenspot/scripts/fix_results_for_v2.py",
+        "console": "integratedTerminal",
+        "python": "${workspaceFolder}/.venv/bin/python",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/eval/screenspot"
+        },
+        "cwd": "${workspaceFolder}/eval/screenspot",
+        "justMyCode": true,
+        "args": [
+          "--input",
+          "${workspaceFolder}/eval/screenspot/results/uitars15_7b_screenspot_v2_all.json",
+          "--output",
+          "${workspaceFolder}/eval/screenspot/results/uitars15_7b_screenspot_v2_all_fixed.json",
+          "--img_base_path",
+          "/mnt/disks/eval-data/ScreenSpot-v2/screenspotv2_image",
+          "--dataset_path",
+          "/mnt/disks/eval-data/ScreenSpot-v2"
+        ]
       }
     ]
   }
