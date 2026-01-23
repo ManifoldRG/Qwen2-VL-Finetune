@@ -120,7 +120,7 @@ def train():
     if training_args.vision_lora and not training_args.freeze_vision_tower:
         raise ValueError("If `vision_lora` is True, `freeze_vision_tower` must also be True.")
 
-    else:
+    if training_args.lora_enable:
         if training_args.lora_namespan_exclude is not None:
             training_args.lora_namespan_exclude = ast.literal_eval(training_args.lora_namespan_exclude)
         else:
