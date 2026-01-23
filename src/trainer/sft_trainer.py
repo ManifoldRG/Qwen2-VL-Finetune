@@ -391,11 +391,11 @@ class QwenSFTTrainer(Trainer):
             if was_training:
                 self.model.train()
 
-    def training_step(self, model, inputs):
+    def training_step(self, model, inputs, num_items_in_batch=None):
         """
         Override training_step to add geometric distance metrics at logging intervals.
         """
-        loss = super().training_step(model, inputs)
+        loss = super().training_step(model, inputs, num_items_in_batch)
         
         # Compute training geometric metrics at logging intervals
         train_metrics = self._compute_training_geometric_metrics(inputs)
@@ -541,6 +541,8 @@ class QwenSFTTrainer(Trainer):
         )
 
         metrics = self.compute_metrics(eval_prediction)
+        if metrics is None:
+            metrics = {}
 
         # Add loss to metrics if available
         if all_losses:

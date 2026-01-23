@@ -114,7 +114,11 @@ def compute_geometric_distance_metrics(
         - total_samples: total number of prediction/reference pairs
     """
     distances = []
-    total_samples = len(predictions)
+    
+    # Validate list lengths match
+    if len(predictions) != len(references):
+        logger.warning(f"predictions and references have different lengths: {len(predictions)} vs {len(references)}. Using minimum length.")
+    total_samples = min(len(predictions), len(references))
     
     if DEBUG_GEOMETRIC_METRICS:
         logger.debug(f"Computing geometric distance metrics for {total_samples} prediction/reference pairs")
