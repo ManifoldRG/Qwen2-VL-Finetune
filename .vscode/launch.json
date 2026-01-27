@@ -248,6 +248,29 @@
             ],
             "justMyCode": true,
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Prepare Salesforce dataset (24935 samples)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/prepare_salesforce_dataset_full.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "env": {
+            "PYTHONPATH": "${workspaceFolder}"
+            },
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true,
+            "args": [
+            "--output_dir",
+            "/mnt/disks/sca-data/salesforce-25k/",
+            "--num_samples",
+            "25000",
+            "--seed",
+            "42",
+            "--save_every",
+            "50"
+            ]
         }
     ]
 }
