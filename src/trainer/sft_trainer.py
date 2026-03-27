@@ -15,6 +15,9 @@ from transformers.trainer import (
     SaveStrategy,
     has_length,
 )
+
+# Environment variable to enable verbose geometric metrics debugging
+DEBUG_GEOMETRIC_METRICS = os.getenv("DEBUG_GEOMETRIC_METRICS", "false").lower() == "true"
 from transformers.pytorch_utils import (
     ALL_LAYERNORM_LAYERS
 )
@@ -221,6 +224,12 @@ class QwenSFTTrainer(Trainer):
         answer_ids = labels[label_mask]
         reference_text = tokenizer.decode(answer_ids, skip_special_tokens=True)
 
+        if DEBUG_GEOMETRIC_METRICS:
+            prompt_text = tokenizer.decode(prompt_ids, skip_special_tokens=True)
+            logger.debug(f"  Extracted prompt: {len(prompt_ids)} tokens, text: {prompt_text[:150]}..." if len(prompt_text) > 150 else f"  Extracted prompt: {len(prompt_ids)} tokens, text: {prompt_text}")
+            logger.debug(f"  Extracted reference: {len(answer_ids)} tokens, text: {reference_text[:150]}..." if len(reference_text) > 150 else f"  Extracted reference: {len(answer_ids)} tokens, text: {reference_text}")
+            logger.debug(f"  Answer starts at index: {answer_start_idx} (input length: {len(input_ids)})")
+
         return prompt_ids, reference_text
 
     def _prepare_generation_inputs(
@@ -274,6 +283,128 @@ class QwenSFTTrainer(Trainer):
             gen_inputs["second_per_grid_ts"] = original_inputs["second_per_grid_ts"]
 
         return gen_inputs
+
+    def _compute_training_geometric_metrics(self, inputs: Dict[str, torch.Tensor]) -> Optional[Dict[str, float]]:
+        """
+        Compute geometric distance metrics for a training batch.
+        Only computes on a sample to minimize performance impact.
+        
+        Returns:
+            Dictionary with training metrics or None if computation skipped
+        """
+        # Only compute at logging intervals and on first sample of batch to minimize overhead
+        if (self.state.global_step % self.args.logging_steps != 0 or 
+            not hasattr(self, 'processing_class')):
+            if DEBUG_GEOMETRIC_METRICS:
+                logger.debug(f"[Step {self.state.global_step}] Skipping training geometric metrics: "
+                           f"step % logging_steps != 0 or no processing_class")
+            return None
+        
+        if DEBUG_GEOMETRIC_METRICS:
+            logger.info(f"[Step {self.state.global_step}] Computing training geometric metrics")
+        
+        was_training = self.model.training
+        try:
+            self.model.eval()
+            tokenizer = self.processing_class.tokenizer
+            
+            # Process only first sample in batch to minimize overhead
+            batch_size = inputs['input_ids'].shape[0]
+            if DEBUG_GEOMETRIC_METRICS:
+                logger.debug(f"  Batch size: {batch_size}")
+            
+            if batch_size == 0:
+                if DEBUG_GEOMETRIC_METRICS:
+                    logger.warning("  Empty batch, skipping metrics computation")
+                return None
+            
+            # Extract prompt and reference for first sample
+            input_ids = inputs['input_ids'][0:1]
+            labels = inputs['labels'][0:1]
+            
+            prompt_ids, reference_text = self._extract_prompt_and_reference(
+                input_ids[0], labels[0], tokenizer
+            )
+            
+            if DEBUG_GEOMETRIC_METRICS:
+                logger.debug(f"  Prompt length: {len(prompt_ids)} tokens")
+                logger.debug(f"  Reference text length: {len(reference_text)} chars")
+                if len(reference_text) > 0:
+                    logger.debug(f"  Reference text: {reference_text[:200]}..." if len(reference_text) > 200 else f"  Reference text: {reference_text}")
+            
+            if len(prompt_ids) == 0 or len(reference_text) == 0:
+                if DEBUG_GEOMETRIC_METRICS:
+                    logger.warning(f"  Empty prompt or reference (prompt_len={len(prompt_ids)}, ref_len={len(reference_text)}), skipping")
+                return None
+            
+            # Prepare generation inputs
+            gen_inputs = self._prepare_generation_inputs(
+                [prompt_ids],
+                inputs,
+                tokenizer,
+                input_ids.device
+            )
+            
+            if DEBUG_GEOMETRIC_METRICS:
+                logger.debug(f"  Generation inputs prepared: input_ids shape={gen_inputs['input_ids'].shape}")
+            
+            # Generate prediction
+            with torch.no_grad():
+                generation_config = GenerationConfig(
+                    max_new_tokens=128,  # Smaller for training metrics
+                    do_sample=False,
+                    temperature=1.0,
+                )
+                generated_ids = self.model.generate(**gen_inputs, generation_config=generation_config)
+            
+            # Decode prediction
+            prompt_len = len(prompt_ids)
+            new_tokens = generated_ids[0][prompt_len:]
+            pred_text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+            
+            if DEBUG_GEOMETRIC_METRICS:
+                logger.debug(f"  Generated prediction length: {len(pred_text)} chars")
+                logger.debug(f"  Generated prediction: {pred_text[:200]}..." if len(pred_text) > 200 else f"  Generated prediction: {pred_text}")
+            
+            # Compute metrics
+            from src.trainer.geometric_metrics import compute_geometric_distance_metrics
+            metrics = compute_geometric_distance_metrics([pred_text], [reference_text])
+            
+            if DEBUG_GEOMETRIC_METRICS:
+                logger.info(f"  Computed metrics: {metrics}")
+            
+            # Prefix with train_
+            prefixed_metrics = {f"train_{k}": v for k, v in metrics.items()}
+            if DEBUG_GEOMETRIC_METRICS:
+                logger.info(f"  Returning prefixed metrics: {prefixed_metrics}")
+            
+            return prefixed_metrics
+        except Exception as e:
+            # Log full exception traceback in debug mode
+            if DEBUG_GEOMETRIC_METRICS:
+                logger.exception(f"Failed to compute training geometric metrics at step {self.state.global_step}")
+            else:
+                logger.debug(f"Failed to compute training geometric metrics: {e}")
+            return None
+        finally:
+            # Restore training mode
+            if was_training:
+                self.model.train()
+
+    def training_step(self, model, inputs, num_items_in_batch=None):
+        """
+        Override training_step to add geometric distance metrics at logging intervals.
+        """
+        loss = super().training_step(model, inputs, num_items_in_batch)
+        
+        # Compute training geometric metrics at logging intervals
+        train_metrics = self._compute_training_geometric_metrics(inputs)
+        if train_metrics:
+            if DEBUG_GEOMETRIC_METRICS:
+                logger.info(f"[Step {self.state.global_step}] Logging training geometric metrics: {train_metrics}")
+            self.log(train_metrics)
+        
+        return loss
 
     def evaluation_loop(
         self,
@@ -410,11 +541,30 @@ class QwenSFTTrainer(Trainer):
         )
 
         metrics = self.compute_metrics(eval_prediction)
+        if metrics is None:
+            metrics = {}
 
         # Add loss to metrics if available
         if all_losses:
             avg_loss = torch.cat(all_losses).mean().item()
             metrics[f"{metric_key_prefix}_loss"] = avg_loss
+
+        # Compute geometric distance metrics
+        if DEBUG_GEOMETRIC_METRICS:
+            logger.info(f"Computing geometric distance metrics for {len(all_predictions)} prediction/reference pairs")
+        
+        from src.trainer.geometric_metrics import compute_geometric_distance_metrics
+        geometric_metrics = compute_geometric_distance_metrics(all_predictions, all_references)
+        
+        if DEBUG_GEOMETRIC_METRICS:
+            logger.info(f"Geometric metrics computed: {geometric_metrics}")
+            logger.info(f"  Valid samples: {geometric_metrics.get('valid_samples', 0)}/{geometric_metrics.get('total_samples', 0)}")
+            if geometric_metrics.get('valid_samples', 0) > 0:
+                logger.info(f"  Mean distance: {geometric_metrics.get('mean_distance', 0):.2f}")
+                logger.info(f"  Median distance: {geometric_metrics.get('median_distance', 0):.2f}")
+                logger.info(f"  Std distance: {geometric_metrics.get('std_distance', 0):.2f}")
+        
+        metrics.update(geometric_metrics)
 
         # Prefix all metrics
         metrics = {

@@ -106,21 +106,6 @@ def train():
         (ModelArguments, DataArguments, TrainingArguments))
     
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    use_liger = training_args.use_liger
-    if "Qwen2.5" in model_args.model_id or "UI-TARS" in model_args.model_id:
-        # monkey patch the vision model
-        replace_qwen2_5_vision()
-        # It monkey patches the forward to handle mixed modality inputs.
-        replace_qwen2_5_with_mixed_modality_forward()
-        # This is becuase mixed-modality training monkey-patches the model forward method.
-        if use_liger:
-            apply_liger_kernel_to_qwen2_5_vl()
-    else:
-        # It monkey patches the forward to handle mixed modality inputs.
-        replace_qwen_2_with_mixed_modality_forward()
-        # This is becuase mixed-modality training monkey-patches the model forward method.
-        if use_liger:
-            apply_liger_kernel_to_qwen2_vl()
     
     if data_args.nframes is not None and data_args.fps is not None:
         raise ValueError("You cannot set both `nframes` and `fps` at the same time. Please set only one of them.")
@@ -135,7 +120,7 @@ def train():
     if training_args.vision_lora and not training_args.freeze_vision_tower:
         raise ValueError("If `vision_lora` is True, `freeze_vision_tower` must also be True.")
 
-    else:
+    if training_args.lora_enable:
         if training_args.lora_namespan_exclude is not None:
             training_args.lora_namespan_exclude = ast.literal_eval(training_args.lora_namespan_exclude)
         else:

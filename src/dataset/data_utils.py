@@ -89,7 +89,7 @@ def get_image_info(image_path, min_pixel, max_pixel, width, height, image_patch_
         }
     ]
 
-    image_input, _ = process_vision_info(messages, image_patch_size=image_patch_size)
+    image_input, _ = process_vision_info(messages)
 
     return image_input[0]
 
@@ -118,7 +118,6 @@ def get_video_info(video_path, min_pixels, max_pixels, width, height, fps, image
     _, video_input, video_kwargs = process_vision_info(
         messages, 
         return_video_kwargs=True, 
-        image_patch_size=image_patch_size, 
         return_video_metadata=return_video_metadata
     )
 

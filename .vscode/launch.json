@@ -1,368 +1,276 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-      {
-        "name": "List presets",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Sample AutoGUI (Full 2k)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/sample_autogui.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_json",
+                "data/autogui_2k.json",
+                "--num_samples",
+                "2000",
+                "--seed",
+                "42"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--list_presets"
-        ]
-      },
-      {
-        "name": "GTA1 no reasoning direct query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Sample AutoGUI (Test - 100 samples)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/sample_autogui.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_json",
+                "data/autogui_test.json",
+                "--num_samples",
+                "100",
+                "--seed",
+                "42"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "gta1_no_reasoning_direct_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "GTA1 reasoning direct query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Sample AutoGUI (Custom)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/sample_autogui.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_json",
+                "data/autogui_custom.json",
+                "--num_samples",
+                "100",
+                "--seed",
+                "42"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "gta1_reasoning_direct_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "GTA1 no reasoning relational query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Validate AutoGUI (Test)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/validate_autogui_samples.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--json_path",
+                "data/autogui_test.json",
+                "--num_visualize",
+                "5"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "gta1_no_reasoning_relational_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "GTA1 reasoning relational query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Validate AutoGUI (Full 2k)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/validate_autogui_samples.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--json_path",
+                "data/autogui_2k.json",
+                "--num_visualize",
+                "10"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "gta1_reasoning_relational_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "Qwen25VL no reasoning direct query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Validate AutoGUI (No Visualization)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/validate_autogui_samples.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--json_path",
+                "data/autogui_test.json",
+                "--num_visualize",
+                "0"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "qwen25vl_no_reasoning_direct_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "Qwen25VL reasoning direct query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Sample Grounding Dataset (Test - 100 samples)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/sample_grounding_dataset.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_json",
+                "data/grounding_test.json",
+                "--num_samples",
+                "100",
+                "--seed",
+                "42"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "qwen25vl_reasoning_direct_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "Qwen25VL no reasoning relational query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Sample Grounding Dataset (Stratified - 2k)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/sample_grounding_dataset.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_json",
+                "data/grounding_2k.json",
+                "--num_samples",
+                "2000",
+                "--seed",
+                "42",
+                "--stratified"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "qwen25vl_no_reasoning_relational_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "Qwen25VL reasoning relational query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Sample Grounding Dataset (All)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/sample_grounding_dataset.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_json",
+                "data/grounding_all.json",
+                "--seed",
+                "42"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "qwen25vl_reasoning_relational_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "UITARS15 no reasoning direct query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Sample Grounding Dataset (Filtered - OmniAct)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/sample_grounding_dataset.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_json",
+                "data/grounding_omniact.json",
+                "--dataset_filter",
+                "omniact",
+                "--seed",
+                "42"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "uitars15_no_reasoning_direct_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "UITARS15 reasoning direct query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Sample Grounding Dataset (Train/Val Split - 2k)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/sample_grounding_dataset.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_json",
+                "data/grounding_2k.json",
+                "--num_samples",
+                "2000",
+                "--seed",
+                "42",
+                "--split_output",
+                "--val_ratio",
+                "0.1"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "uitars15_reasoning_direct_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "UITARS15 no reasoning relational query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Sample Grounding Dataset (Train/Val Split - Stratified 2k)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/sample_grounding_dataset.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_json",
+                "data/grounding_2k.json",
+                "--num_samples",
+                "2000",
+                "--seed",
+                "42",
+                "--stratified",
+                "--split_output",
+                "--val_ratio",
+                "0.1"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "uitars15_no_reasoning_relational_query",
-          "--save_interval",
-          "1"
-        ]
-      },
-      {
-        "name": "UITARS15 reasoning relational query",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "eval.gui_perturbed_evaluator",
-        "console": "integratedTerminal",
-        "python": "${workspaceFolder}/.venv/bin/python",
-        "env": {
-          "PYTHONPATH": "${workspaceFolder}",
-          "DEBUG": "True"
+        {
+            "name": "Python: Validate Grounding Dataset (Test)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/validate_autogui_samples.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--json_path",
+                "data/grounding_test.json",
+                "--num_visualize",
+                "5"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         },
-        "cwd": "${workspaceFolder}",
-        "justMyCode": true,
-        "args": [
-          "--csv_path",
-          "variant_data_cleaned.csv",
-          "--screenshots_base_dir",
-          "/mnt/test_splits/",
-          "--output_dir",
-          "/mnt/baseline_results/",
-          "--seed",
-          "42",
-          "--config_id",
-          "uitars15_reasoning_relational_query",
-          "--save_interval",
-          "1"
-        ]
-      }
+        {
+            "name": "Python: Validate Grounding Dataset (Stratified 2k)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/validate_autogui_samples.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": [
+                "--json_path",
+                "data/grounding_2k.json",
+                "--num_visualize",
+                "10"
+            ],
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Prepare Salesforce dataset (24935 samples)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/prepare_salesforce_dataset_full.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "env": {
+            "PYTHONPATH": "${workspaceFolder}"
+            },
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true,
+            "args": [
+            "--output_dir",
+            "/mnt/disks/sca-data/salesforce-25k/",
+            "--num_samples",
+            "25000",
+            "--seed",
+            "42",
+            "--save_every",
+            "50"
+            ]
+        }
     ]
-  }
-  
+}
